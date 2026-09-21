@@ -1,9 +1,27 @@
+# Visual Studio
 .vs/
+*.user
+*.suo
+
+# C++ build output
 x64/
 x86/
 Debug/
 Release/
 [Bb]uild/
+
+# Node.js
 node_modules/
+npm-debug.log*
+
+# Certificates / private keys
 *.pfx
 *.key
+*.pem
+
+# Local pairing credentials
+windows-client/pairing.json
+
+# OS files
+.DS_Store
+Thumbs.db
