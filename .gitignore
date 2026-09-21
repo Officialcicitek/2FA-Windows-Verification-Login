@@ -1,0 +1,9 @@
+.vs/
+x64/
+x86/
+Debug/
+Release/
+[Bb]uild/
+node_modules/
+*.pfx
+*.key

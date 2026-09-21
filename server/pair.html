@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>PhoneUnlock Pairing</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+
+            margin: 0;
+
+            min-height: 100vh;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            font-family: Arial, sans-serif;
+
+            background: #111;
+
+            color: white;
+
+        }
+
+        .card {
+
+            width: min(90%, 420px);
+
+            background: #1e1e1e;
+
+            border-radius: 20px;
+
+            padding: 30px;
+
+            text-align: center;
+
+        }
+
+        input {
+
+            width: 100%;
+
+            padding: 15px;
+
+            margin-top: 15px;
+
+            border: none;
+
+            border-radius: 10px;
+
+            background: #292929;
+
+            color: white;
+
+            font-size: 20px;
+
+            text-align: center;
+
+        }
+
+        button {
+
+            width: 100%;
+
+            margin-top: 15px;
+
+            padding: 15px;
+
+            border: none;
+
+            border-radius: 10px;
+
+            background: #35c759;
+
+            color: white;
+
+            font-size: 17px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+        }
+
+        button:disabled {
+
+            opacity: 0.5;
+
+            cursor: default;
+
+        }
+
+        #result {
+
+            margin-top: 20px;
+
+            line-height: 1.5;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="card">
+
+    <h1>🔐 PhoneUnlock</h1>
+
+    <h2>Pair device</h2>
+
+    <p>
+        Zadej 6místný pairing kód
+    </p>
+
+
+    <input
+        id="code"
+        type="text"
+        inputmode="numeric"
+        maxlength="6"
+        placeholder="123456"
+    >
+
+
+    <input
+        id="phoneName"
+        type="text"
+        placeholder="Název telefonu"
+    >
+
+
+    <button
+        id="pairButton"
+        onclick="pair()"
+    >
+        🔗 Spárovat
+    </button>
+
+
+    <div id="result"></div>
+
+</div>
+
+
+<script>
+
+
+// =================================
+// PAIR DEVICE
+// =================================
+
+async function pair() {
+
+    const code =
+        document
+            .getElementById("code")
+            .value
+            .trim();
+
+
+    const phoneName =
+        document
+            .getElementById("phoneName")
+            .value
+            .trim();
+
+
+    const result =
+        document
+            .getElementById("result");
+
+
+    const button =
+        document
+            .getElementById("pairButton");
+
+
+    // =================================
+    // VALIDATION
+    // =================================
+
+    if (!code || !phoneName) {
+
+        result.textContent =
+            "Vyplň kód i název telefonu.";
+
+        return;
+
+    }
+
+
+    if (!/^\d{6}$/.test(code)) {
+
+        result.textContent =
+            "❌ Kód musí mít přesně 6 číslic.";
+
+        return;
+
+    }
+
+
+    button.disabled = true;
+
+    result.textContent =
+        "⏳ Páruji zařízení...";
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/pairing/confirm",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        code,
+
+                        phoneName
+
+                    })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        // =================================
+        // ERROR
+        // =================================
+
+        if (!response.ok) {
+
+            result.textContent =
+                "❌ " + data.error;
+
+            button.disabled = false;
+
+            return;
+
+        }
+
+
+        console.log(
+            "Pairing:",
+            data
+        );
+
+
+        // =================================
+        // SAVE PAIRING
+        // =================================
+
+        localStorage.setItem(
+            "phoneUnlockPairId",
+            data.pair.pairId
+        );
+
+
+        localStorage.setItem(
+            "phoneUnlockPairSecret",
+            data.pair.pairSecret
+        );
+
+
+        localStorage.setItem(
+            "phoneUnlockDeviceName",
+            data.pair.deviceName
+        );
+
+
+        localStorage.setItem(
+            "phoneUnlockPhoneName",
+            data.pair.phoneName
+        );
+
+
+        // =================================
+        // SUCCESS
+        // =================================
+
+        result.textContent =
+            "🟢 Telefon byl úspěšně spárován!";
+
+
+        // =================================
+        // REDIRECT
+        // =================================
+
+        setTimeout(() => {
+
+            window.location.href =
+                "/mobile";
+
+        }, 700);
+
+    }
+
+
+    catch (error) {
+
+        console.error(error);
+
+        result.textContent =
+            "❌ Chyba připojení.";
+
+        button.disabled = false;
+
+    }
+
+}
+
+</script>
+
+
+</body>
+
+</html>

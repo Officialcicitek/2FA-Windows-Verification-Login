@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>PhoneUnlock</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+
+            margin: 0;
+
+            min-height: 100vh;
+
+            display: flex;
+
+            justify-content: center;
+
+            align-items: center;
+
+            font-family: Arial, sans-serif;
+
+            background: #111;
+
+            color: white;
+
+        }
+
+        .card {
+
+            width: min(90%, 420px);
+
+            background: #1e1e1e;
+
+            border-radius: 20px;
+
+            padding: 30px;
+
+            text-align: center;
+
+        }
+
+        .status {
+
+            margin-top: 20px;
+
+            padding: 15px;
+
+            border-radius: 12px;
+
+            background: #292929;
+
+        }
+
+        .request {
+
+            margin-top: 20px;
+
+        }
+
+        .device {
+
+            font-size: 24px;
+
+            font-weight: bold;
+
+            margin: 15px 0;
+
+            word-break: break-word;
+
+        }
+
+        .buttons {
+
+            display: none;
+
+            gap: 10px;
+
+            margin-top: 25px;
+
+        }
+
+        button {
+
+            flex: 1;
+
+            padding: 16px;
+
+            border: none;
+
+            border-radius: 12px;
+
+            font-size: 17px;
+
+            font-weight: bold;
+
+            cursor: pointer;
+
+        }
+
+        .approve {
+
+            background: #35c759;
+
+            color: white;
+
+        }
+
+        .deny {
+
+            background: #ff453a;
+
+            color: white;
+
+        }
+
+        button:disabled {
+
+            opacity: 0.5;
+
+            cursor: not-allowed;
+
+        }
+
+        .hidden {
+
+            display: none;
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<div class="card">
+
+    <h1>🔐 PhoneUnlock</h1>
+
+
+    <div
+        id="status"
+        class="status"
+    >
+
+        🟡 Připojování k serveru...
+
+    </div>
+
+
+    <div
+        id="request"
+        class="request hidden"
+    >
+
+        <p>Pokus o přihlášení</p>
+
+
+        <div
+            id="deviceName"
+            class="device"
+        >
+        </div>
+
+
+        <div
+            id="buttons"
+            class="buttons"
+        >
+
+            <button
+                id="denyButton"
+                class="deny"
+                onclick="denyLogin()"
+            >
+
+                ✕ Zamítnout
+
+            </button>
+
+
+            <button
+                id="approveButton"
+                class="approve"
+                onclick="approveLogin()"
+            >
+
+                ✓ Povolit
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+
+// =================================
+// SERVER
+// =================================
+
+const SERVER =
+    window.location.origin;
+
+
+// =================================
+// CURRENT REQUEST
+// =================================
+
+let currentRequest = null;
+
+
+// =================================
+// STATUS
+// =================================
+
+function setStatus(message) {
+
+    document
+        .getElementById("status")
+        .textContent =
+            message;
+
+}
+
+
+// =================================
+// SHOW REQUEST
+// =================================
+
+function showRequest(request) {
+
+    currentRequest =
+        request;
+
+
+    document
+        .getElementById("request")
+        .classList
+        .remove("hidden");
+
+
+    document
+        .getElementById("deviceName")
+        .textContent =
+            request.deviceName;
+
+
+    document
+        .getElementById("buttons")
+        .style.display =
+            "flex";
+
+
+    document
+        .getElementById("approveButton")
+        .disabled =
+            false;
+
+
+    document
+        .getElementById("denyButton")
+        .disabled =
+            false;
+
+
+    setStatus(
+        "🔴 Čeká na tvoje rozhodnutí"
+    );
+
+}
+
+
+// =================================
+// HIDE REQUEST
+// =================================
+
+function hideRequest() {
+
+    document
+        .getElementById("request")
+        .classList
+        .add("hidden");
+
+}
+
+
+// =================================
+// HIDE BUTTONS
+// =================================
+
+function hideButtons() {
+
+    document
+        .getElementById("buttons")
+        .style.display =
+            "none";
+
+}
+
+
+// =================================
+// DISABLE BUTTONS
+// =================================
+
+function disableButtons() {
+
+    document
+        .getElementById("approveButton")
+        .disabled =
+            true;
+
+    document
+        .getElementById("denyButton")
+        .disabled =
+            true;
+
+}
+
+
+// =================================
+// GET PAIR SECRET
+// =================================
+
+function getPairSecret() {
+
+    return localStorage.getItem(
+        "phoneUnlockPairSecret"
+    );
+
+}
+
+
+// =================================
+// BUFFER → HEX
+// =================================
+
+function bufferToHex(buffer) {
+
+    const bytes =
+        new Uint8Array(
+            buffer
+        );
+
+    return Array
+        .from(bytes)
+        .map(
+            byte =>
+                byte
+                    .toString(16)
+                    .padStart(
+                        2,
+                        "0"
+                    )
+        )
+        .join("");
+
+}
+
+
+// =================================
+// CREATE HMAC PROOF
+// =================================
+
+async function createApprovalProof(
+    pairSecret,
+    requestId,
+    challenge
+) {
+
+    // =================================
+    // SECRET → BYTES
+    // =================================
+
+    const secretBytes =
+        new TextEncoder().encode(
+            pairSecret
+        );
+
+
+    // =================================
+    // IMPORT HMAC KEY
+    // =================================
+
+    const key =
+        await crypto.subtle.importKey(
+
+            "raw",
+
+            secretBytes,
+
+            {
+                name:
+                    "HMAC",
+
+                hash:
+                    "SHA-256"
+
+            },
+
+            false,
+
+            [
+                "sign"
+            ]
+
+        );
+
+
+    // =================================
+    // DATA TO SIGN
+    // =================================
+
+    const data =
+        new TextEncoder().encode(
+
+            requestId +
+            ":" +
+            challenge
+
+        );
+
+
+    // =================================
+    // CREATE HMAC
+    // =================================
+
+    const signature =
+        await crypto.subtle.sign(
+
+            "HMAC",
+
+            key,
+
+            data
+
+        );
+
+
+    return bufferToHex(
+        signature
+    );
+
+}
+
+
+// =================================
+// APPROVE
+// =================================
+
+async function approveLogin() {
+
+    console.log("crypto:", window.crypto);
+    console.log("crypto.subtle:", window.crypto?.subtle);
+
+    if (!window.crypto?.subtle) {
+        setStatus(
+            "❌ crypto.subtle není dostupné — stránka běží přes HTTP"
+        );
+        return;
+    }
+
+    if (!currentRequest) {
+        return;
+    }
+
+    // ...
+
+    const pairSecret =
+        getPairSecret();
+
+
+    if (!pairSecret) {
+
+        setStatus(
+            "❌ Pair secret nebyl nalezen"
+        );
+
+        return;
+
+    }
+
+
+    disableButtons();
+
+
+    try {
+
+        setStatus(
+            "🟡 Vytvářím kryptografický důkaz..."
+        );
+
+
+        // =================================
+        // CREATE PROOF
+        // =================================
+
+        const proof =
+            await createApprovalProof(
+
+                pairSecret,
+
+                currentRequest.requestId,
+
+                currentRequest.challenge
+
+            );
+
+
+        // =================================
+        // SEND PROOF
+        // =================================
+
+        const response =
+            await fetch(
+
+                `${SERVER}/auth/request/${currentRequest.requestId}/approve`,
+
+                {
+
+                    method:
+                        "POST",
+
+                    headers: {
+
+                        "Authorization":
+                            `Bearer ${pairSecret}`,
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body:
+                        JSON.stringify({
+
+                            proof:
+                                proof
+
+                        })
+
+                }
+
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            setStatus(
+                "❌ " +
+                data.error
+            );
+
+
+            // Allow another attempt
+            document
+                .getElementById("approveButton")
+                .disabled =
+                    false;
+
+            document
+                .getElementById("denyButton")
+                .disabled =
+                    false;
+
+            return;
+
+        }
+
+
+        setStatus(
+            "🟢 Přihlášení kryptograficky povoleno"
+        );
+
+
+        hideButtons();
+
+    }
+    catch (error) {
+
+        console.error(
+            "Approval error:",
+            error
+        );
+
+
+        setStatus(
+            "❌ Chyba kryptografického ověření"
+        );
+
+
+        document
+            .getElementById("approveButton")
+            .disabled =
+                false;
+
+        document
+            .getElementById("denyButton")
+            .disabled =
+                false;
+
+    }
+
+}
+
+
+// =================================
+// DENY
+// =================================
+
+async function denyLogin() {
+
+    if (!currentRequest) {
+        return;
+    }
+
+
+    const pairSecret =
+        getPairSecret();
+
+
+    if (!pairSecret) {
+
+        setStatus(
+            "❌ Pair secret nebyl nalezen"
+        );
+
+        return;
+
+    }
+
+
+    disableButtons();
+
+
+    try {
+
+        const response =
+            await fetch(
+
+                `${SERVER}/auth/request/${currentRequest.requestId}/deny`,
+
+                {
+
+                    method:
+                        "POST",
+
+                    headers: {
+
+                        "Authorization":
+                            `Bearer ${pairSecret}`
+
+                    }
+
+                }
+
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            setStatus(
+                "❌ " +
+                data.error
+            );
+
+
+            document
+                .getElementById("approveButton")
+                .disabled =
+                    false;
+
+            document
+                .getElementById("denyButton")
+                .disabled =
+                    false;
+
+            return;
+
+        }
+
+
+        setStatus(
+            "🔴 Přihlášení zamítnuto"
+        );
+
+
+        hideButtons();
+
+    }
+    catch (error) {
+
+        console.error(
+            "Deny error:",
+            error
+        );
+
+
+        setStatus(
+            "❌ Chyba připojení"
+        );
+
+
+        document
+            .getElementById("approveButton")
+            .disabled =
+                false;
+
+        document
+            .getElementById("denyButton")
+            .disabled =
+                false;
+
+    }
+
+}
+
+
+// =================================
+// WEBSOCKET
+// =================================
+
+function connectWebSocket() {
+
+    const pairId =
+        localStorage.getItem(
+            "phoneUnlockPairId"
+        );
+
+
+    const pairSecret =
+        localStorage.getItem(
+            "phoneUnlockPairSecret"
+        );
+
+
+    // =================================
+    // CHECK PAIRING
+    // =================================
+
+    if (
+        !pairId ||
+        !pairSecret
+    ) {
+
+        setStatus(
+            "🟡 Telefon není správně spárovaný"
+        );
+
+        return;
+
+    }
+
+
+    const protocol =
+        location.protocol === "https:"
+            ? "wss:"
+            : "ws:";
+
+
+    const socket =
+        new WebSocket(
+            `${protocol}//${location.host}`
+        );
+
+
+    // =================================
+    // CONNECTED
+    // =================================
+
+    socket.onopen = () => {
+
+        console.log(
+            "WebSocket connected"
+        );
+
+
+        setStatus(
+            "🟡 Ověřování telefonu..."
+        );
+
+
+        socket.send(
+            JSON.stringify({
+
+                type:
+                    "register_phone",
+
+                pairId:
+                    pairId,
+
+                pairSecret:
+                    pairSecret
+
+            })
+        );
+
+    };
+
+
+    // =================================
+    // MESSAGE
+    // =================================
+
+    socket.onmessage = (event) => {
+
+        try {
+
+            const data =
+                JSON.parse(
+                    event.data
+                );
+
+
+            console.log(
+                "WebSocket:",
+                data
+            );
+
+
+            // =================================
+            // REGISTRATION FAILED
+            // =================================
+
+            if (
+                data.type ===
+                "registration_failed"
+            ) {
+
+                setStatus(
+                    "❌ " +
+                    data.error
+                );
+
+
+                socket.close();
+
+                return;
+
+            }
+
+
+            // =================================
+            // REGISTRATION SUCCESS
+            // =================================
+
+            if (
+                data.type ===
+                "registration_success"
+            ) {
+
+                setStatus(
+                    "🟢 Telefon je připojen"
+                );
+
+                return;
+
+            }
+
+
+            // =================================
+            // LOGIN REQUEST
+            // =================================
+
+            if (
+                data.type ===
+                "login_request"
+            ) {
+
+                showRequest(
+                    data.request
+                );
+
+                return;
+
+            }
+
+
+            // =================================
+            // LOGIN APPROVED
+            // =================================
+
+            if (
+                data.type ===
+                "login_approved"
+            ) {
+
+                if (
+                    currentRequest &&
+                    data.request.requestId ===
+                    currentRequest.requestId
+                ) {
+
+                    setStatus(
+                        "🟢 Přihlášení povoleno"
+                    );
+
+
+                    hideButtons();
+
+                }
+
+                return;
+
+            }
+
+
+            // =================================
+            // LOGIN DENIED
+            // =================================
+
+            if (
+                data.type ===
+                "login_denied"
+            ) {
+
+                if (
+                    currentRequest &&
+                    data.request.requestId ===
+                    currentRequest.requestId
+                ) {
+
+                    setStatus(
+                        "🔴 Přihlášení zamítnuto"
+                    );
+
+
+                    hideButtons();
+
+                }
+
+                return;
+
+            }
+
+
+            // =================================
+            // LOGIN EXPIRED
+            // =================================
+
+            if (
+                data.type ===
+                "login_expired"
+            ) {
+
+                if (
+                    currentRequest &&
+                    data.request.requestId ===
+                    currentRequest.requestId
+                ) {
+
+                    setStatus(
+                        "⏱️ Platnost žádosti vypršela"
+                    );
+
+
+                    hideButtons();
+
+                }
+
+                return;
+
+            }
+
+        }
+        catch (error) {
+
+            console.error(
+                "WebSocket message error:",
+                error
+            );
+
+        }
+
+    };
+
+
+    // =================================
+    // DISCONNECTED
+    // =================================
+
+    socket.onclose = () => {
+
+        console.log(
+            "WebSocket disconnected"
+        );
+
+
+        setStatus(
+            "🔴 Spojení ztraceno — připojuji..."
+        );
+
+
+        setTimeout(
+            connectWebSocket,
+            2000
+        );
+
+    };
+
+
+    // =================================
+    // ERROR
+    // =================================
+
+    socket.onerror = (error) => {
+
+        console.error(
+            "WebSocket error:",
+            error
+        );
+
+    };
+
+}
+
+
+// =================================
+// START
+// =================================
+
+connectWebSocket();
+
+
+</script>
+
+
+</body>
+
+</html>
