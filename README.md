@@ -245,7 +245,7 @@ PhoneUnlock is currently under active development.
 
 This project is licensed under the **Apache License 2.0**.
 
-Copyright © 2026 Vojtěch Holčík.
+Copyright © 2026 cicitek.
 
 See the [LICENSE](LICENSE) file for the full license text.
 
